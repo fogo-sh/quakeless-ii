@@ -6,6 +6,10 @@ import shutil
 import zipfile
 from pathlib import Path
 
+tmp_dir = Path("tmp")
+tmp_dir.mkdir(parents=True, exist_ok=True)
+pak0_dir = tmp_dir / "pak0"
+
 yquake2_url = "https://github.com/yquake2/yquake2.git"
 yquake2_commit = "d2efa1c9af5ef649a91cf5de4bfa2370c03f69f2"
 yquake2_dir = Path("yquake2")
@@ -16,21 +20,18 @@ yquake2_ref_vk_dir = Path("ref_vk")
 
 ericw_tools_url = "https://github.com/ericwa/ericw-tools.git"
 ericw_tools_commit = "ac607554e93455328ea3901388e476a64b1402e9"
-ericw_tools_dir = Path("ericw-tools")
+ericw_tools_dir = tmp_dir / Path("ericw-tools")
 
 game_c_dir = Path("game-c")
 
 base_dir = Path("base")
-
-tmp_dir = Path("tmp")
-tmp_dir.mkdir(parents=True, exist_ok=True)
-pak0_dir = tmp_dir / "pak0"
 
 release_dir = Path("release")
 
 debug_build = True
 build_odin = False
 odin_vet = False
+
 
 def get_os_info():
     if sys.platform.startswith("linux"):
@@ -39,6 +40,8 @@ def get_os_info():
         os_string = "win64"
     else:
         os_string = "Darwin"
+
+    return os_string
 
 
 def get_dyn_lib_ext():
@@ -103,6 +106,7 @@ def download_ericw_tools():
             dest.parent.mkdir(parents=True, exist_ok=True)
             file.replace(dest)
 
+
 def clone():
     clone_yquake2()
     clone_yquake2_ref_vk()
@@ -112,7 +116,9 @@ def clone():
 def build_yquake2():
     print("Building yquake2")
     if debug_build:
-        subprocess.run(["make", "DEBUG=1", "WITH_SDL3=yes"], check=True, cwd=yquake2_dir)
+        subprocess.run(
+            ["make", "DEBUG=1", "WITH_SDL3=yes"], check=True, cwd=yquake2_dir
+        )
     else:
         subprocess.run(["make", "WITH_SDL3=yes"], check=True, cwd=yquake2_dir)
 
@@ -172,18 +178,27 @@ def build_maps():
     for map_file in map_files:
         map_name = map_file.stem
         print(f"Building map: {map_name}")
-        import sys
 
         def tool_path(tool_name):
             exe = ".exe" if sys.platform.startswith("win") else ""
             path = ericw_tools_dir / f"{tool_name}{exe}"
             print(f"Path for {tool_name}: {path}")
             path = os.path.abspath(path)
+
+            if not os.access(path, os.X_OK):
+                print(f"Setting executable mode for {path}")
+                mode = os.stat(path).st_mode
+                os.chmod(path, mode | 0o111)
+
             return str(path)
 
-        subprocess.run([tool_path("qbsp"), "-q2bsp", f"{map_name}.map"], check=True, cwd=maps_dir)
+        subprocess.run(
+            [tool_path("qbsp"), "-q2bsp", f"{map_name}.map"], check=True, cwd=maps_dir
+        )
         subprocess.run([tool_path("vis"), f"{map_name}.bsp"], check=True, cwd=maps_dir)
-        subprocess.run([tool_path("light"), f"{map_name}.bsp"], check=True, cwd=maps_dir)
+        subprocess.run(
+            [tool_path("light"), f"{map_name}.bsp"], check=True, cwd=maps_dir
+        )
 
 
 def copy_directory_recursively(src, dst, **kwargs):
@@ -316,9 +331,7 @@ def setup_trenchbroom(os_string: str):
         )
 
     elif os_string == "Linux":
-        games_dir = Path(
-            os.path.expanduser("~/.TrenchBroom/games/")
-        )
+        games_dir = Path(os.path.expanduser("~/.TrenchBroom/games/"))
 
     elif os_string == "win64":
         games_dir = Path(os.environ["APPDATA"]) / "TrenchBroom" / "games"
@@ -346,7 +359,6 @@ def loc_metrics():
 
 
 def main():
-
     os_string = get_os_info()
 
     parser = argparse.ArgumentParser(description="Build tools for minimal-quake2-base")

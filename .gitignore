@@ -1,3 +1,7 @@
+*.log
+.DS_Store
+tmp
+
 yquake2
 ref_vk
 release

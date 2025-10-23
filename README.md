@@ -1,16 +1,17 @@
-# quake experiments - minimal-quake2-base
+# quakeless ii
+
+can i get... uhhh quake ii, but ummmm, hold the quake?
+
+what if quake ii but it doesn't need the pak0.pak, but what if the game dll was written in odin? and also what if it had no features and no expectations of support for anything from the base game?
+
+welcome to quakeless ii
 
 state:
 
-- still pulling in files from pak0 as needed, not yet overwritten with alternatives
-- no sounds / models, just _some_ custom images
-- odin code has a working player controller, still some things missing that are _needed_, like disconnect / server commands / user info / save / loads
-
-todo
-
-- sounds, player jump, player fall
-- player model
-- player animations
+- quake ii pak0 required _partially_ at the moment, there are still a few files (like main menu graphics, conchars.pcx) that are copied over
+  - the goal is to one day remove this requirement and have everything for the game to boot just in the repo
+- no sounds / models, just _some_ custom images for the map / _some_ main menu elements
+- odin code has a working player that can move around and _not_ crash... but that's about it, not even disconnect logic currently
 
 goals:
 
@@ -37,16 +38,15 @@ non goals:
 
 it was used as a test to see _how much_ you can rip away from the game until it stops compiling / working.
 
-its (mostly) surved its purpose, might get moved to a parent directory at some point since it has no real path
-forward here, but it was _very_ useful for getting started!
+its (mostly) surved its purpose, but it was _very_ useful for getting the odin code started!
 
 ---
 
-While this minimal base isn't supposed to contain much graphics / vibes, I still want some level of art direction for _some_ vibes.
+while this minimal base isn't supposed to contain much graphics / vibes, I still want some level of art direction for _some_ vibes.
 
-Color scheme: https://lospec.com/palette-list/endesga-32
+color scheme: https://lospec.com/palette-list/endesga-32
 
 - backdrop: #181425
 - menu backdrop: #3a4466
 
-Font: https://fonts.google.com/specimen/DynaPuff
+font: https://fonts.google.com/specimen/DynaPuff
