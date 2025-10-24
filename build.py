@@ -29,7 +29,8 @@ base_dir = Path("base")
 release_dir = Path("release")
 
 debug_build = True
-build_odin = False
+build_odin = True
+use_odin_render = True
 odin_vet = False
 
 
@@ -154,6 +155,27 @@ def build_game_odin():
     subprocess.run(build_args, check=True)
 
 
+def build_render_odin():
+    print("Building render-odin")
+    (release_dir / "baseq2").mkdir(parents=True, exist_ok=True)
+
+    build_args = [
+        "odin",
+        "build",
+        "./render-odin",
+        "-build-mode:dll",
+        f"-out:./release/ref_odin.{get_dyn_lib_ext()}",
+    ]
+
+    if debug_build:
+        build_args.append("-debug")
+
+    if odin_vet:
+        build_args.append("-vet")
+
+    subprocess.run(build_args, check=True)
+
+
 def build_game_c():
     print("Building game-c")
     (release_dir / "baseq2").mkdir(parents=True, exist_ok=True)
@@ -169,6 +191,13 @@ def build_game():
         build_game_odin()
     else:
         build_game_c()
+
+
+def build_render():
+    if build_odin and use_odin_render:
+        build_render_odin()
+    else:
+        print("Not building render, not using odin or not using odin render")
 
 
 def build_maps():
@@ -310,11 +339,21 @@ def build():
     build_maps()
     copy_files()
     build_game()
+    build_render()
 
 
-def run(args: list[str] = []):
+def run(args: list[str] = None):
+    if args is None:
+        args = []
+
     env = os.environ.copy()
-    env["DYLD_LIBRARY_PATH"] = "/opt/homebrew/opt/molten-vk/lib"
+
+    if get_os_info() == "Darwin":
+        env["DYLD_LIBRARY_PATH"] = "/opt/homebrew/opt/molten-vk/lib"
+
+    if use_odin_render:
+        args += ["+set", "vid_renderer", "odin"]
+
     subprocess.run(["./quake2", *args], check=True, cwd=release_dir, env=env)
 
 
@@ -367,6 +406,7 @@ def main():
     subparsers.add_parser("clone", help="Clone repositories")
     subparsers.add_parser("build", help="Build targets")
     subparsers.add_parser("build-game", help="Build game")
+    subparsers.add_parser("build-render", help="Build render")
     subparsers.add_parser("build-maps", help="Build maps")
     subparsers.add_parser("all", help="Do everything")
 
@@ -374,6 +414,12 @@ def main():
         "build-game-and-run", help="Build the game and run it"
     )
     build_game_run_parser.add_argument(
+        "args", nargs="*", help="Arguments to pass to Quake2"
+    )
+    build_render_run_parser = subparsers.add_parser(
+        "build-render-and-run", help="Build the render and run it"
+    )
+    build_render_run_parser.add_argument(
         "args", nargs="*", help="Arguments to pass to Quake2"
     )
 
@@ -400,12 +446,17 @@ def main():
         build()
     elif args.command == "build-game":
         build_game()
+    elif args.command == "build-render":
+        build_render()
     elif args.command == "build-maps":
         build_maps()
     elif args.command == "all":
         all()
     elif args.command == "build-game-and-run":
         build_game()
+        run(args.args)
+    elif args.command == "build-render-and-run":
+        build_render()
         run(args.args)
     elif args.command == "run":
         run(args.args)
