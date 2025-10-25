@@ -7,7 +7,7 @@ ref_*
 release
 ericw-tools
 
-minimal-quake2-base-xcode
+*.xcodeproj*
 
 autosave
 *.swp
