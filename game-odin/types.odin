@@ -355,9 +355,11 @@ Cvar :: struct {
 	string:         cstring,
 	latched_string: cstring,
 	flags:          i32,
-	modified:       bool,
+	modified:       b32,
 	value:          f32,
 	next:           ^Cvar,
+
+	// Added by YQ2. Must be at the end to preserve ABI.
 	default_string: cstring,
 }
 

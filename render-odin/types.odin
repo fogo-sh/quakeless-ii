@@ -119,18 +119,16 @@ Refdef :: struct {
 }
 
 Cvar :: struct {
-	/*
-	char *name;
-	char *string;
-	char *latched_string; /* for CVAR_LATCH vars */
-	int flags;
-	qboolean modified; /* set each time the cvar is changed */
-	float value;
-	struct cvar_s *next;
+	name:           cstring,
+	string:         cstring,
+	latched_string: cstring,
+	flags:          i32,
+	modified:       b32,
+	value:          f32,
+	next:           ^Cvar,
 
-	/* Added by YQ2. Must be at the end to preserve ABI. */
-	char *default_string;
-	*/
+	// Added by YQ2. Must be at the end to preserve ABI.
+	default_string: cstring,
 }
 
 Ref_Restart :: enum i32 {
