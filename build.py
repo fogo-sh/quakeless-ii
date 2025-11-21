@@ -422,6 +422,13 @@ def main():
     build_render_run_parser.add_argument(
         "args", nargs="*", help="Arguments to pass to Quake2"
     )
+    build_engine_and_render_run_parser = subparsers.add_parser(
+        "build-engine-and-render-and-run",
+        help="Build the engine, render, and run the game",
+    )
+    build_engine_and_render_run_parser.add_argument(
+        "args", nargs="*", help="Arguments to pass to Quake2"
+    )
 
     run_parser = subparsers.add_parser("run", help="Run the game")
     run_parser.add_argument("args", nargs="*", help="Arguments to pass to Quake2")
@@ -457,6 +464,11 @@ def main():
         run(args.args)
     elif args.command == "build-render-and-run":
         build_render()
+        run(args.args)
+    elif args.command == "build-engine-and-render-and-run":
+        build_yquake2()
+        build_render()
+        copy_files()
         run(args.args)
     elif args.command == "run":
         run(args.args)
