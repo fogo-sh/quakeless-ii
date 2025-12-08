@@ -1,3 +1,16 @@
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#     "pydantic",
+#     "requests",
+#     "rich",
+#     "typer",
+# ]
+# ///
+
+from enum import Enum
+from typing import Optional
+import tomllib
 import os
 import sys
 import subprocess
@@ -6,54 +19,107 @@ import shutil
 import zipfile
 from pathlib import Path
 
+import requests
+from pydantic import BaseModel
+from rich import print
+
 tmp_dir = Path("tmp")
 tmp_dir.mkdir(parents=True, exist_ok=True)
 pak0_dir = tmp_dir / "pak0"
 
-yquake2_url = "https://github.com/yquake2/yquake2.git"
-yquake2_commit = "d2efa1c9af5ef649a91cf5de4bfa2370c03f69f2"
 yquake2_dir = Path("yquake2")
-
-yquake2_ref_vk_url = "https://github.com/yquake2/ref_vk"
-yquake2_ref_vk_commit = "21bde3c4bb3ab3af00d41c2fd85b86c0a021732f"
 yquake2_ref_vk_dir = Path("ref_vk")
-
-ericw_tools_url = "https://github.com/ericwa/ericw-tools.git"
-ericw_tools_commit = "ac607554e93455328ea3901388e476a64b1402e9"
 ericw_tools_dir = tmp_dir / Path("ericw-tools")
 
+
+class BuildConfig(BaseModel):
+    yquake2_url: str
+    yquake2_commit: str
+
+    yquake2_ref_vk_url: str
+    yquake2_ref_vk_commit: str
+
+    ericw_tools_url: str
+
+    debug_build: bool
+    build_odin: bool
+    use_odin_renderer: bool
+    odin_vet: bool
+
+
+with open("config.toml", "rb") as f:
+    data = tomllib.load(f)
+
+cfg = BuildConfig(**data)
+
 game_c_dir = Path("game-c")
-
 base_dir = Path("base")
-
 release_dir = Path("release")
 
-debug_build = True
-build_odin = True
-use_odin_render = False
-odin_vet = False
+Platform = Enum(
+    "Platform",
+    [("WINDOWS", "win64"), ("LINUX", "linux"), ("MAC", "darwin"), ("OTHER", "other")],
+)
 
 
-def get_os_info():
+def download_file(url: str, dest: str) -> bool:
+    print(f"⏳ Downloading {url}")
+
+    try:
+        r = requests.get(url)
+
+        if requests.codes.ok == 200:
+            with open(dest, "wb") as f:
+                f.write(r.content)
+            return True
+        else:
+            print(f"[bold red]Error:[/bold red] Download failed for: {url}")
+    except requests.exceptions.ConnectionError:
+        print(f"[bold red]Error:[/bold red] Download failed for: {url}")
+
+    return False
+
+
+def get_platform() -> Platform[str]:
     if sys.platform.startswith("linux"):
-        os_string = "Linux"
+        os_string = Platform.LINUX
     elif sys.platform.startswith("win"):
-        os_string = "win64"
+        os_string = Platform.WINDOWS
+    elif sys.platform.startswith("darwin"):
+        os_string = Platform.MAC
     else:
-        os_string = "Darwin"
+        os_string = Platform.OTHER
 
     return os_string
 
 
-def get_dyn_lib_ext():
-    if sys.platform.startswith("linux"):
+def get_dyn_lib_ext() -> Optional[str]:
+    if get_platform() == Platform.LINUX:
         ext = "so"
-    elif sys.platform.startswith("win"):
+    elif get_platform() == Platform.WINDOWS:
         ext = "dll"
-    else:
+    elif get_platform() == Platform.MAC:
         ext = "dylib"
+    else:
+        ext = None
 
     return ext
+
+
+def git_clone(repo_url: str, dest_dir: Path, commit: str) -> bool:
+    print(f"🎯 Cloning {repo_url}")
+
+    if os.path.exists(dest_dir):
+        print(f"✅ Directory {yquake2_dir} already exists. Skipping clone.")
+        return
+
+    try:
+        subprocess.run(["git", "clone", repo_url, dest_dir], check=True)
+        subprocess.run(["git", "checkout", commit], check=True, cwd=dest_dir)
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Cloning {repo_url} failed: {e}")
+
+    print(f"✅ Cloned {repo_url}")
 
 
 def clone_yquake2():
@@ -61,8 +127,8 @@ def clone_yquake2():
         print(f"Directory {yquake2_dir} already exists. Skipping clone.")
         return
 
-    subprocess.run(["git", "clone", yquake2_url, yquake2_dir], check=True)
-    subprocess.run(["git", "checkout", yquake2_commit], check=True, cwd=yquake2_dir)
+    subprocess.run(["git", "clone", cfg.yquake2_url, yquake2_dir], check=True)
+    subprocess.run(["git", "checkout", cfg.yquake2_commit], check=True, cwd=yquake2_dir)
 
 
 def clone_yquake2_ref_vk():
@@ -70,13 +136,21 @@ def clone_yquake2_ref_vk():
         print(f"Directory {yquake2_ref_vk_dir} already exists. Skipping clone.")
         return
 
-    subprocess.run(["git", "clone", yquake2_ref_vk_url, yquake2_ref_vk_dir], check=True)
     subprocess.run(
-        ["git", "checkout", yquake2_ref_vk_commit], check=True, cwd=yquake2_ref_vk_dir
+        ["git", "clone", cfg.yquake2_ref_vk_url, yquake2_ref_vk_dir], check=True
+    )
+    subprocess.run(
+        ["git", "checkout", cfg.yquake2_ref_vk_commit],
+        check=True,
+        cwd=yquake2_ref_vk_dir,
     )
 
 
+# TODO: When run on *nix systems this script needs to do a 'chmod +x' on the binaries,
+# otherwise the other parts of the build choke as they are not executable
 def download_ericw_tools():
+    print(f"🎯 Downloading ericw-tools")
+
     ericw_zip_path = tmp_dir / "ericw-tools.zip"
 
     ericw_extract_dir = tmp_dir / "ericw-tools"
@@ -84,18 +158,12 @@ def download_ericw_tools():
     if ericw_zip_path.exists():
         print(f"{ericw_zip_path} already exists. Skipping download.")
     else:
-        os_string = "Darwin"
-        if sys.platform.startswith("linux"):
-            os_string = "Linux"
-        elif sys.platform.startswith("win"):
-            os_string = "win64"
+        platform = get_platform()
+        url = f"{cfg.ericw_tools_url}-{platform.value}.zip"
 
-        download_url = f"https://github.com/ericwa/ericw-tools/releases/download/2.0.0-alpha9/ericw-tools-2.0.0-alpha9-{os_string}.zip"
+        if not download_file(url, ericw_zip_path):
+            sys.exit(1)
 
-        subprocess.run(
-            ["wget", "-O", ericw_zip_path, download_url],
-            check=True,
-        )
         ericw_extract_dir.mkdir(parents=True, exist_ok=True)
 
     with zipfile.ZipFile(ericw_zip_path, "r") as zip_ref:
@@ -107,16 +175,18 @@ def download_ericw_tools():
             dest.parent.mkdir(parents=True, exist_ok=True)
             file.replace(dest)
 
+    print(f"✅ Downloaded ericw-tools")
+
 
 def clone():
-    clone_yquake2()
-    clone_yquake2_ref_vk()
+    git_clone(cfg.yquake2_url, yquake2_dir, cfg.yquake2_commit)
+    git_clone(cfg.yquake2_ref_vk_url, yquake2_ref_vk_dir, cfg.yquake2_ref_vk_commit)
     download_ericw_tools()
 
 
 def build_yquake2():
     print("Building yquake2")
-    if debug_build:
+    if cfg.debug_build:
         subprocess.run(
             ["make", "DEBUG=1", "WITH_SDL3=yes"], check=True, cwd=yquake2_dir
         )
@@ -146,10 +216,10 @@ def build_game_odin():
         f"-out:./release/baseq2/game.{get_dyn_lib_ext()}",
     ]
 
-    if debug_build:
+    if cfg.debug_build:
         build_args.append("-debug")
 
-    if odin_vet:
+    if cfg.odin_vet:
         build_args.append("-vet")
 
     subprocess.run(build_args, check=True)
@@ -167,10 +237,10 @@ def build_render_odin():
         f"-out:./release/ref_odin.{get_dyn_lib_ext()}",
     ]
 
-    if debug_build:
+    if cfg.debug_build:
         build_args.append("-debug")
 
-    if odin_vet:
+    if cfg.odin_vet:
         build_args.append("-vet")
 
     subprocess.run(build_args, check=True)
@@ -187,14 +257,14 @@ def build_game_c():
 
 
 def build_game():
-    if build_odin:
+    if cfg.build_odin:
         build_game_odin()
     else:
         build_game_c()
 
 
 def build_render():
-    if build_odin and use_odin_render:
+    if cfg.build_odin and cfg.use_odin_renderer:
         build_render_odin()
     else:
         print("Not building render, not using odin or not using odin render")
@@ -269,7 +339,14 @@ def copy_file_maintaining_path(
             target_dir.mkdir(parents=True, exist_ok=True)
 
         print(f"Copying {source_file} to {target_file}")
-        shutil.copy2(source_file, target_file)
+
+        try:
+            shutil.copy2(source_file, target_file)
+        except FileNotFoundError:
+            print(
+                f"[bold red]Error:[/bold red] No such file or directory [yellow]{source_file}[/yellow]. Did you forget to provide a pak0.pak file?"
+            )
+            sys.exit(1)
 
 
 def copy_files():
@@ -348,10 +425,10 @@ def run(args: list[str] = None):
 
     env = os.environ.copy()
 
-    if get_os_info() == "Darwin":
+    if get_platform().value == "Darwin":
         env["DYLD_LIBRARY_PATH"] = "/opt/homebrew/opt/molten-vk/lib"
 
-    if use_odin_render:
+    if cfg.use_odin_renderer:
         args += ["+set", "vid_renderer", "odin"]
 
     subprocess.run(["./quake2", *args], check=True, cwd=release_dir, env=env)
@@ -398,7 +475,11 @@ def loc_metrics():
 
 
 def main():
-    os_string = get_os_info()
+    platform = get_platform()
+
+    if platform == Platform.OTHER:
+        print("This platform/OS is currently not supported, aborting.")
+        sys.exit(1)
 
     parser = argparse.ArgumentParser(description="Build tools for minimal-quake2-base")
     subparsers = parser.add_subparsers(dest="command", help="Commands")
