@@ -29,7 +29,7 @@ base_dir = Path("base")
 release_dir = Path("release")
 
 debug_build = True
-build_odin = False
+build_odin = True
 use_odin_render = True
 odin_vet = False
 
@@ -286,7 +286,7 @@ def copy_files():
         yquake2_dir / "release" / f"ref_gl1.{get_dyn_lib_ext()}",
         yquake2_dir / "release" / f"ref_gl3.{get_dyn_lib_ext()}",
         yquake2_dir / "release" / f"ref_gles3.{get_dyn_lib_ext()}",
-        # yquake2_ref_vk_dir / "release" / f"ref_vk.{get_dyn_lib_ext()}",
+        yquake2_ref_vk_dir / "release" / f"ref_vk.{get_dyn_lib_ext()}",
     ]
 
     for file in files:
@@ -335,7 +335,7 @@ def copy_files():
 
 def build():
     build_yquake2()
-    # build_yquake2_ref_vk()
+    build_yquake2_ref_vk()
     build_maps()
     copy_files()
     build_game()
