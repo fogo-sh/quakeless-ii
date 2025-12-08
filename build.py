@@ -175,7 +175,11 @@ def download_ericw_tools():
             dest.parent.mkdir(parents=True, exist_ok=True)
             file.replace(dest)
 
+<<<<<<< HEAD
     print(f"✅ Downloaded ericw-tools")
+=======
+    print("✅ Downloaded ericw-tools")
+>>>>>>> 8b40031 (Hit em with that ruff)
 
 
 def clone():
@@ -440,16 +444,16 @@ def all():
     run()
 
 
-def setup_trenchbroom(os_string: str):
-    if os_string == "Darwin":
+def setup_trenchbroom(platform: Platform):
+    if platform.value == "Darwin":
         games_dir = Path(
             os.path.expanduser("~/Library/Application Support/TrenchBroom/games/")
         )
 
-    elif os_string == "Linux":
+    elif platform.value == "Linux":
         games_dir = Path(os.path.expanduser("~/.TrenchBroom/games/"))
 
-    elif os_string == "win64":
+    elif platform.value == "win64":
         games_dir = Path(os.environ["APPDATA"]) / "TrenchBroom" / "games"
 
     if not games_dir.exists():
@@ -559,7 +563,7 @@ def main():
         copy_files()
         run(args.args)
     elif args.command == "setup-trenchbroom":
-        setup_trenchbroom(os_string)
+        setup_trenchbroom(platform)
     elif args.command == "loc-metrics":
         loc_metrics()
     elif not args.command:
