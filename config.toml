@@ -1,0 +1,12 @@
+yquake2_url = "https://github.com/yquake2/yquake2.git"
+yquake2_commit = "d2efa1c9af5ef649a91cf5de4bfa2370c03f69f2"
+
+yquake2_ref_vk_url = "https://github.com/yquake2/ref_vk"
+yquake2_ref_vk_commit = "21bde3c4bb3ab3af00d41c2fd85b86c0a021732f"
+
+ericw_tools_url = "https://github.com/ericwa/ericw-tools/releases/download/2.0.0-alpha9/ericw-tools-2.0.0-alpha9"
+
+debug_build = true
+build_odin = true
+use_odin_renderer = false
+odin_vet = false
