@@ -110,7 +110,7 @@ def git_clone(repo_url: str, dest_dir: Path, commit: str) -> bool:
     print(f"🎯 Cloning {repo_url}")
 
     if os.path.exists(dest_dir):
-        print(f"✅ Directory {yquake2_dir} already exists. Skipping clone.")
+        print(f"✅ Directory {dest_dir} already exists. Skipping clone.")
         return
 
     try:
