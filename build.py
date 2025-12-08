@@ -2,7 +2,7 @@
 # requires-python = ">=3.14"
 # dependencies = [
 #     "pydantic",
-#     "requests",
+#     "httpx",
 #     "rich",
 #     "typer",
 # ]
@@ -19,7 +19,7 @@ import shutil
 import zipfile
 from pathlib import Path
 
-import requests
+import httpx
 from pydantic import BaseModel
 from rich import print
 
@@ -66,16 +66,16 @@ def download_file(url: str, dest: str) -> bool:
     print(f"⏳ Downloading {url}")
 
     try:
-        r = requests.get(url)
+        r = httpx.get(url, follow_redirects=True)
 
-        if requests.codes.ok == 200:
+        if r.status_code == 200:
             with open(dest, "wb") as f:
                 f.write(r.content)
             return True
         else:
-            print(f"[bold red]Error:[/bold red] Download failed for: {url}")
-    except requests.exceptions.ConnectionError:
-        print(f"[bold red]Error:[/bold red] Download failed for: {url}")
+            print(f"[bold red]Error:[/bold red] Download failed for: {url}. Status code {r.status_code}")
+    except httpx.RequestError:
+        print(f"[bold red]Error:[/bold red] Download failed for: {url} {e}")
 
     return False
 
