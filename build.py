@@ -121,31 +121,6 @@ def git_clone(repo_url: str, dest_dir: Path, commit: str) -> bool:
 
     print(f"✅ Cloned {repo_url}")
 
-
-def clone_yquake2():
-    if os.path.exists(yquake2_dir):
-        print(f"Directory {yquake2_dir} already exists. Skipping clone.")
-        return
-
-    subprocess.run(["git", "clone", cfg.yquake2_url, yquake2_dir], check=True)
-    subprocess.run(["git", "checkout", cfg.yquake2_commit], check=True, cwd=yquake2_dir)
-
-
-def clone_yquake2_ref_vk():
-    if os.path.exists(yquake2_ref_vk_dir):
-        print(f"Directory {yquake2_ref_vk_dir} already exists. Skipping clone.")
-        return
-
-    subprocess.run(
-        ["git", "clone", cfg.yquake2_ref_vk_url, yquake2_ref_vk_dir], check=True
-    )
-    subprocess.run(
-        ["git", "checkout", cfg.yquake2_ref_vk_commit],
-        check=True,
-        cwd=yquake2_ref_vk_dir,
-    )
-
-
 # TODO: When run on *nix systems this script needs to do a 'chmod +x' on the binaries,
 # otherwise the other parts of the build choke as they are not executable
 def download_ericw_tools():
