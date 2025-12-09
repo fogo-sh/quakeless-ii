@@ -9,17 +9,18 @@
 # ///
 
 from enum import Enum
-from typing import Optional
+from typing import Optional, Callable
+from dataclasses import dataclass
 import tomllib
 import os
 import sys
 import subprocess
-import argparse
 import shutil
 import zipfile
 from pathlib import Path
 
 import httpx
+import typer
 from pydantic import BaseModel
 from rich import print
 
@@ -47,8 +48,7 @@ class BuildConfig(BaseModel):
     odin_vet: bool
 
 
-with open("config.toml", "rb") as f:
-    data = tomllib.load(f)
+data = tomllib.loads(Path("config.toml").read_text())
 
 cfg = BuildConfig(**data)
 
@@ -62,19 +62,20 @@ Platform = Enum(
 )
 
 
-def download_file(url: str, dest: str) -> bool:
+def download_file(url: str, dest: Path) -> bool:
     print(f"⏳ Downloading {url}")
 
     try:
         r = httpx.get(url, follow_redirects=True)
 
         if r.status_code == 200:
-            with open(dest, "wb") as f:
-                f.write(r.content)
+            dest.write_bytes(r.content)
             return True
         else:
-            print(f"[bold red]Error:[/bold red] Download failed for: {url}. Status code {r.status_code}")
-    except httpx.RequestError:
+            print(
+                f"[bold red]Error:[/bold red] Download failed for: {url}. Status code {r.status_code}"
+            )
+    except httpx.RequestError as e:
         print(f"[bold red]Error:[/bold red] Download failed for: {url} {e}")
 
     return False
@@ -121,13 +122,13 @@ def git_clone(repo_url: str, dest_dir: Path, commit: str) -> bool:
 
     print(f"✅ Cloned {repo_url}")
 
+
 # TODO: When run on *nix systems this script needs to do a 'chmod +x' on the binaries,
 # otherwise the other parts of the build choke as they are not executable
 def download_ericw_tools():
     print(f"🎯 Downloading ericw-tools")
 
     ericw_zip_path = tmp_dir / "ericw-tools.zip"
-
     ericw_extract_dir = tmp_dir / "ericw-tools"
 
     if ericw_zip_path.exists():
@@ -150,11 +151,7 @@ def download_ericw_tools():
             dest.parent.mkdir(parents=True, exist_ok=True)
             file.replace(dest)
 
-<<<<<<< HEAD
-    print(f"✅ Downloaded ericw-tools")
-=======
     print("✅ Downloaded ericw-tools")
->>>>>>> 8b40031 (Hit em with that ruff)
 
 
 def clone():
@@ -175,12 +172,12 @@ def build_yquake2():
 
 def build_yquake2_ref_vk():
     print("Building yquake2 ref_vk")
-    subprocess.run(["make", "WITH_SDL3=yes"], check=True, cwd=yquake2_ref_vk_dir)
-
-
-def build_ericw_tools():
-    print("Building ericw-tools")
-    subprocess.run(["make"], check=True, cwd=ericw_tools_dir)
+    if cfg.debug_build:
+        subprocess.run(
+            ["make", "DEBUG=1", "WITH_SDL3=yes"], check=True, cwd=yquake2_ref_vk_dir
+        )
+    else:
+        subprocess.run(["make", "WITH_SDL3=yes"], check=True, cwd=yquake2_ref_vk_dir)
 
 
 def build_game_odin():
@@ -398,7 +395,8 @@ def build():
     build_render()
 
 
-def run(args: list[str] = None):
+def run(args: list[str] | None = None):
+    """Run the game with optional arguments"""
     if args is None:
         args = []
 
@@ -413,13 +411,9 @@ def run(args: list[str] = None):
     subprocess.run(["./quake2", *args], check=True, cwd=release_dir, env=env)
 
 
-def all():
-    clone()
-    build()
-    run()
+def setup_trenchbroom():
+    platform = get_platform()
 
-
-def setup_trenchbroom(platform: Platform):
     if platform.value == "Darwin":
         games_dir = Path(
             os.path.expanduser("~/Library/Application Support/TrenchBroom/games/")
@@ -453,97 +447,120 @@ def loc_metrics():
     print(f"Lines of code metrics written to {output_file}")
 
 
-def main():
+@dataclass
+class Action:
+    """Defines an action that can be run"""
+
+    name: str
+    func: Callable
+    description: str = ""
+
+
+def action_all(run_params: list[str] | None = None):
+    """Run clone, build, and run"""
+    clone()
+    build()
+    run(run_params)
+
+
+def action_build():
+    """Build everything"""
+    build_yquake2()
+    build_yquake2_ref_vk()
+    build_maps()
+    copy_files()
+    build_game()
+    build_render()
+
+
+ACTIONS: dict[str, Action] = {
+    "clone": Action("clone", clone, description="Clone repositories"),
+    "engine": Action("engine", build_yquake2, description="Build yquake2 engine"),
+    "game": Action("game", build_game, description="Build game library"),
+    "render": Action("render", build_render, description="Build render library"),
+    "maps": Action("maps", build_maps, description="Compile map files"),
+    "copy": Action("copy", copy_files, description="Copy files to release directory"),
+    "run": Action("run", run, description="Run the game"),
+    "setup-trenchbroom": Action(
+        "setup-trenchbroom",
+        setup_trenchbroom,
+        description="Setup TrenchBroom configuration",
+    ),
+    "loc-metrics": Action(
+        "loc-metrics", loc_metrics, description="Generate lines of code metrics"
+    ),
+    "build": Action("build", action_build, description="Build all components"),
+    "all": Action("all", action_all, description="Clone, build, and run"),
+}
+
+
+app = typer.Typer(help="Build tools for minimal-quake2-base")
+
+
+@app.command()
+def main(
+    steps: list[str] = typer.Argument(..., help="Steps to run in order"),
+    run_args: Optional[str] = typer.Option(
+        None,
+        "--run-args",
+        help="Arguments to pass to the 'run' action (e.g., '+map test1')",
+    ),
+):
+    """
+    Run one or more build steps in sequence.
+
+    Steps:\n
+    - clone: Clone repositories\n
+    - engine: Build yquake2 engine\n
+    - game: Build game library\n
+    - render: Build render library\n
+    - maps: Compile map files\n
+    - copy: Copy files to release directory\n
+    - run: Run the game\n
+    - setup-trenchbroom: Setup TrenchBroom configuration\n
+    - loc-metrics: Generate lines of code metrics\n
+    - build: Build all components\n
+    - all: Clone, build, and run\n
+    \n
+
+    Examples:\n
+    uv run build.py maps copy run\n
+    uv run build.py game copy run --run-args "+map test1"\n
+    uv run build.py build run --run-args "+set vid_fullscreen 0"\n
+    uv run build.py all --run-args "+developer 1"\n
+    """
     platform = get_platform()
 
     if platform == Platform.OTHER:
         print("This platform/OS is currently not supported, aborting.")
-        sys.exit(1)
+        raise typer.Exit(code=1)
 
-    parser = argparse.ArgumentParser(description="Build tools for minimal-quake2-base")
-    subparsers = parser.add_subparsers(dest="command", help="Commands")
+    run_params = run_args.split() if run_args else None
 
-    subparsers.add_parser("clone", help="Clone repositories")
-    subparsers.add_parser("build", help="Build targets")
-    subparsers.add_parser("build-game", help="Build game")
-    subparsers.add_parser("build-render", help="Build render")
-    subparsers.add_parser("build-maps", help="Build maps")
-    subparsers.add_parser("all", help="Do everything")
+    for step in steps:
+        if step not in ACTIONS:
+            available = "\n  ".join(
+                [
+                    f"{name}: {action.description}"
+                    for name, action in sorted(ACTIONS.items())
+                ]
+            )
+            print(f"[bold red]Error:[/bold red] Unknown step: [yellow]{step}[/yellow]")
+            print(f"\nAvailable steps:\n  {available}")
+            raise typer.BadParameter(f"Unknown step: {step}")
 
-    build_game_run_parser = subparsers.add_parser(
-        "build-game-and-run", help="Build the game and run it"
-    )
-    build_game_run_parser.add_argument(
-        "args", nargs="*", help="Arguments to pass to Quake2"
-    )
-    build_render_run_parser = subparsers.add_parser(
-        "build-render-and-run", help="Build the render and run it"
-    )
-    build_render_run_parser.add_argument(
-        "args", nargs="*", help="Arguments to pass to Quake2"
-    )
-    build_engine_and_render_run_parser = subparsers.add_parser(
-        "build-engine-and-render-and-run",
-        help="Build the engine, render, and run the game",
-    )
-    build_engine_and_render_run_parser.add_argument(
-        "args", nargs="*", help="Arguments to pass to Quake2"
-    )
+    for step in steps:
+        print(f"\n[bold cyan]Running step:[/bold cyan] {step}")
 
-    run_parser = subparsers.add_parser("run", help="Run the game")
-    run_parser.add_argument("args", nargs="*", help="Arguments to pass to Quake2")
+        action = ACTIONS[step]
 
-    subparsers.add_parser("copy", help="Copy files")
-
-    copy_run_parser = subparsers.add_parser(
-        "copy-and-run", help="Copy files and run the game"
-    )
-    copy_run_parser.add_argument("args", nargs="*", help="Arguments to pass to Quake2")
-
-    subparsers.add_parser("setup-trenchbroom", help="Setup Trenchbroom")
-    subparsers.add_parser(
-        "loc-metrics", help="Get metrics on how much code is in game-c"
-    )
-
-    args = parser.parse_args()
-
-    if args.command == "clone":
-        clone()
-    elif args.command == "build":
-        build()
-    elif args.command == "build-game":
-        build_game()
-    elif args.command == "build-render":
-        build_render()
-    elif args.command == "build-maps":
-        build_maps()
-    elif args.command == "all":
-        all()
-    elif args.command == "build-game-and-run":
-        build_game()
-        run(args.args)
-    elif args.command == "build-render-and-run":
-        build_render()
-        run(args.args)
-    elif args.command == "build-engine-and-render-and-run":
-        build_yquake2()
-        build_render()
-        copy_files()
-        run(args.args)
-    elif args.command == "run":
-        run(args.args)
-    elif args.command == "copy":
-        copy_files()
-    elif args.command == "copy-and-run":
-        copy_files()
-        run(args.args)
-    elif args.command == "setup-trenchbroom":
-        setup_trenchbroom(platform)
-    elif args.command == "loc-metrics":
-        loc_metrics()
-    elif not args.command:
-        parser.print_help()
+        if step == "run" and run_params:
+            action.func(run_params)
+        elif step == "all" and run_params:
+            action.func(run_params)
+        else:
+            action.func()
 
 
 if __name__ == "__main__":
-    main()
+    app()
