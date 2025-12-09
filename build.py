@@ -10,8 +10,8 @@ tmp_dir = Path("tmp")
 tmp_dir.mkdir(parents=True, exist_ok=True)
 pak0_dir = tmp_dir / "pak0"
 
-yquake2_url = "https://github.com/yquake2/yquake2.git"
-yquake2_commit = "d2efa1c9af5ef649a91cf5de4bfa2370c03f69f2"
+yquake2_url = "https://github.com/fogo-sh/yquake2.git"
+yquake2_commit = "3ddd994a881a4f47cbf4a3f1016cbb66211a039e"
 yquake2_dir = Path("yquake2")
 
 yquake2_ref_vk_url = "https://github.com/yquake2/ref_vk"
@@ -116,12 +116,28 @@ def clone():
 
 def build_yquake2():
     print("Building yquake2")
-    if debug_build:
-        subprocess.run(
-            ["make", "DEBUG=1", "WITH_SDL3=yes"], check=True, cwd=yquake2_dir
-        )
-    else:
-        subprocess.run(["make", "WITH_SDL3=yes"], check=True, cwd=yquake2_dir)
+    build_type = "Debug" if debug_build else "Release"
+
+    build_dir = yquake2_dir / "build"
+    build_dir.mkdir(exist_ok=True)
+
+    subprocess.run(
+        [
+            "cmake",
+            "-S",
+            str(yquake2_dir),
+            "-B",
+            str(build_dir),
+            "-DCMAKE_BUILD_TYPE=" + build_type,
+            "-DWITH_SDL3=ON",
+        ],
+        check=True,
+    )
+
+    subprocess.run(
+        ["cmake", "--build", str(build_dir), "--config", build_type],
+        check=True,
+    )
 
 
 def build_yquake2_ref_vk():
