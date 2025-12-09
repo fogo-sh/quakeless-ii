@@ -30,7 +30,7 @@ release_dir = Path("release")
 
 debug_build = True
 build_odin = True
-use_odin_render = True
+use_odin_render = False
 odin_vet = False
 
 
